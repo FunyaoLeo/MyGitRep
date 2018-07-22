@@ -1,0 +1,196 @@
+#include <termios.h>	// tcgetattr(), 
+#include <unistd.h> 
+#include <stdio.h>
+#include <errno.h>
+#include <sys/file.h>
+#include <cstdlib>
+#include <iostream>
+#include <cv.h>
+#include <highgui.h>
+
+#define BAUDRATE B57600
+#define SERPORT "/dev/ttyUSB0"
+
+// To compile use the following line:
+// g++ `pkg-config --cflags --libs opencv` -o binaryname filename.cpp
+
+// Prototypes
+// -OpenCV Functions
+IplImage* GetThresholdedImage(IplImage* img);
+
+// -iRobot Create Functions
+void SendToCreate( int fd, const char *data, int length );
+int initRobot();
+void FollowBall(int x, int y, double area, int imgWidth, int fd);
+
+// Global variables
+IplImage* imgYellowThresh;
+
+int main()
+{
+	CvCapture* capture = 0;
+	capture = cvCaptureFromCAM(0);
+	if(!capture)
+	{
+		printf("Could not intitialize capturing...\n");
+		return -1;
+	}
+	
+	//Create the Windows
+	cvNamedWindow("video");
+	cvNamedWindow("thresh");
+
+	//init iRobot
+	int fd = initRobot();
+	if(fd < 0)		//Make sure fd is valid
+		return -1; 	//Error will have been printed within initRobot()
+	
+	while(1)
+	{
+		IplImage* frame = 0;
+		frame = cvQueryFrame(capture);
+
+		if(!frame) break;
+		
+		
+		IplImage* imgThresh = GetThresholdedImage(frame);
+
+		/*
+		//Calculate Ball's position
+		CvMoments *moments = (CvMoments*)malloc(sizeof(CvMoments));
+		cvMoments(imgThresh, moments, 1);
+
+		//actual moment values
+		double moment10 = cvGetSpatialMoment(moments, 1, 0);
+		double moment01 = cvGetSpatialMoment(moments, 0, 1);
+		double area = cvGetCentralMoment(moments, 0, 0);
+		
+		//Hold Last Position and current position of ball
+		static int posX = 0;
+		static int posY = 0;
+
+		int lastX = posX;
+		int lastY = posY;
+		
+		//actual new position
+		posX = moment10/area;
+		posY = moment01/area;
+
+		//Follow the ball
+		FollowBall(posX, posY, area, frame->width, fd);
+		
+		//draw a circle and display the images
+		cvCircle(frame, cvPoint(posX, posY), 5, cvScalar(255, 0, 255), 3, 0 , 0);
+		*/
+		cvShowImage("thresh", imgThresh);
+		cvShowImage("video", frame);
+		
+		//wait for a keypress
+		int c = cvWaitKey(10);
+		if(c != -1)
+			break;
+		/*
+		cvReleaseImage(&imgThresh);
+		delete moments;
+		*/
+	}
+	
+	cvReleaseCapture(&capture);
+	return 0;
+}
+
+//OpenCV Functions
+
+//Takes in an image and returns a thresholded image by a given HSV range.
+IplImage* GetThresholdedImage(IplImage* img)
+{
+	//CvScalar lower = cvGet3D(120, 41, 100);
+	//CvScalar upper = cvGet3D(120, 100, 100);
+
+	//ToDo: Complete This Function using the following comments as guidelines.
+
+	//Create IplImage to hold Binary Image
+	IplImage* biIm=cvCreateImage(cvGetSize(img),IPL_DEPTH_8U,3);
+	
+
+	//Convert the image into an HSV image
+	cvCvtColor(img, biIm, CV_BGR2HSV);
+
+	
+	//Use cvInRangeS() to create Binary Image within HSV range
+	IplImage* biIm1=cvCreateImage(cvGetSize(img),IPL_DEPTH_8U,1);
+	cvInRangeS(biIm, cvScalar(30,80,150), cvScalar(110,180,220),biIm1);
+
+	//Create IplImage and use cvErode on Thresholded Image
+	IplImage* biIm2=cvCreateImage(cvGetSize(img),IPL_DEPTH_8U,1);
+	cvErode(biIm1,biIm2,NULL,1);
+	//Release Unneeded Images that we created.
+	cvReleaseImage(&biIm); 
+	cvReleaseImage(&biIm1);
+	
+	//Return Results
+	return biIm2;
+}
+
+//iRobot Create Functions
+
+//Sends an array of data to the create
+//Typically 7 bytes:
+//Start, Control, Packet, Data, Data, Data, Data
+//E.g. 128, 131, 145, vel1, vel2, rad1, rad2
+void SendToCreate( int fd,const char *data, int length )
+{
+    int i;
+    for( i=0; i<length; i++ )
+    {
+        if( write(fd, &data[i], 1) == -1 )
+        {
+            printf( "\nUnable to write %s", SERPORT );
+            printf( "\nerrno = %d", errno );
+        }
+        usleep( 5000 );
+    }
+}
+
+//Init iRobot, return fd
+int initRobot()
+{
+    int    		fd;
+    struct termios 	tty;
+    int     		flags = fcntl(STDIN_FILENO, F_GETFL);
+
+    fd = open(SERPORT, O_RDWR);                  //open the serial port
+    if ( fd < 0 )
+    {
+        printf( "\nUnable to open %s", SERPORT );
+        printf( "\nerrno = %d", errno );
+        return fd;
+    }
+    else
+        printf( "\nSuccessfully opened the serial port" );
+    
+    tcgetattr(fd, &tty); // Read port parameters into termios structure
+    // cc_t     c_cc[NCCS];   /* control chars */
+    tty.c_cflag = CLOCAL | CREAD | CS8; // CLOCAL    = ignore modem control lines
+                                        // CREAD     = enable receiver
+                                        // CS8       = 8 bit data
+                                        // ~CRTSCTS  = no hardware flow control
+    tty.c_iflag = IGNBRK | IGNPAR;      // IGNBRK    = ignore BREAK condition
+                                        // IGNPAR    = ignore framing anf parity error
+    tty.c_oflag = 0;                    //
+    tty.c_lflag = 0;                    //
+    cfsetospeed(&tty, BAUDRATE );       // Set output baudrate
+    cfsetispeed(&tty, BAUDRATE );       // set input baudrate
+    if( tcsetattr(fd, TCSANOW, &tty) < 0 )// Set serial port - TCSANOW = Apply changes immediately
+    {
+          printf( "\nUnable to tcsetattr %s", SERPORT );
+          printf( "\nerrno = %d\n", errno );
+    }
+    fcntl(STDIN_FILENO, F_SETFL, flags | O_NONBLOCK);
+    return fd;
+}
+
+void FollowBall(int x, int y, double area, int imgWidth, int fd)
+{
+	//ToDo: Add code to make the Robot follow the ball here
+}

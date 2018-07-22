@@ -1,0 +1,452 @@
+---
+title: "EE232E P2"
+## Part 1: Facebook Network
+---
+
+Relevent Packages
+```{r}
+library('igraph')
+library('Matrix')
+```
+
+### 1 Facebook network
+
+#### 1.1 Structural properties of the facebook network
+
+##### Q1
+```{r}
+FB <- read_graph("facebook_combined.txt",format="edgelist",directed=FALSE)
+fc <- cluster_fast_greedy(FB)
+
+plot(fc,FB,vertex.size=5, vertex.label=NA)
+is.connected(FB)
+```
+
+##### Q2
+```{r}
+print(diameter(FB, directed = FALSE, unconnected = FALSE))
+```
+
+##### Q3
+```{r}
+plot(degree.distribution(FB),main="Degree distribution of the network",xlab="Degree",ylab="Frequency")
+print(mean(degree(FB)))
+```
+
+##### Q4
+```{r}
+# Learn from it!!!
+fit_power_law = function(graph) {
+    # calculate degree
+    d = degree(graph, mode = "all")
+    dd = degree.distribution(graph, mode = "all", cumulative = FALSE)
+    degree = 1:max(d)
+    probability = dd[-1]
+    # delete blank values
+    nonzero.position = which(probability != 0)
+    probability = probability[nonzero.position]
+    degree = degree[nonzero.position]
+    reg = lm(log(probability) ~ log(degree))
+    cozf = coef(reg)
+    power.law.fit = function(x) exp(cozf[[1]] + cozf[[2]] * log(x))
+    alpha = cozf[[2]]
+    R.square = summary(reg)$r.squared
+    print(paste("slope =", round(alpha, 3)))
+    
+    # plot
+    plot(probability ~ degree, log = "xy", xlab = "Degree (log)", ylab = "Probability (log)", 
+        col = 1, main = "Degree Distribution")
+    #abline(mod <- lm(log(probability) ~ log(degree)))
+    curve(power.law.fit, col = "red", add = T, n = length(d))
+    
+}
+
+
+fit_power_law(FB)
+```
+
+
+#### 1.2 Personalized network
+
+##### Q5
+```{r}
+FB_neighbor1=neighbors(FB, 1, mode = "total")
+FB_id1=induced_subgraph(FB, c(1,FB_neighbor1), impl ="auto")
+vcount(FB_id1)
+ecount(FB_id1)
+```
+
+##### Q6
+```{r}
+print(diameter(FB_id1, directed = FALSE, unconnected = FALSE))
+```
+Trivial upper and lower bound: 0 (lower bound: when the selected node has no neighbours) and 8(upper bound: diameter of the whole network).
+
+##### Q7
+
+- Lower bound: 0, which means the selected node has no neighbour.
+- Upper bound: diameter of the whole network (8 in this case), all the nodes are a friend of the selected node.
+
+#### 1.3 Core node’s personalized network
+
+##### Q8
+```{r}
+core=c()
+deg=c()
+for( v in V(FB)){
+    if(length(neighbors(FB, v, mode = "total"))>200){
+        core=append(core,v)
+        deg=append(deg,degree(FB,v))
+        }
+}
+print(length(core)) # Number of core nodes
+print(mean(deg)) # Average degree of core nodes
+```
+
+##### Q9
+Plot Function
+```{r}
+plotCommunity = function(com,graph) {
+    colors = rainbow(max(membership(com))+1)
+    #print(membership(com))
+    nodes_colors = colors[1:(length(colors)-1)]
+    V(graph)$color = nodes_colors[membership(com)] 
+    V(graph)$size= 5
+    V(graph)[1]$color = colors[length(colors)] 
+    V(graph)[1]$size = 15
+    print(paste("modularity score =", modularity(com)))
+    plot(graph,vertex.label=NA)
+}
+```
+Node 1
+```{r}
+# fast greedy for FB_1
+com1FG=cluster_fast_greedy(FB_id1, merges = FALSE, modularity = TRUE,
+ weights=NULL)
+plotCommunity(com1FG,FB_id1)
+```
+
+```{r}
+# Edge-Betweenness for FB_1
+com1EB = cluster_edge_betweenness(FB_id1,weights=NULL, directed=FALSE,modularity=TRUE)
+plotCommunity(com1EB,FB_id1)
+```
+```{r}
+# Infomap for FB_1
+com1IC = infomap.community(FB_id1)
+plotCommunity(com1IC,FB_id1)
+```
+Generate subgraphs for the other four core nodes
+```{r}
+FB_id_108=induced_subgraph(FB, c(108,neighbors(FB, 108, mode = "total")), impl ="auto")
+FB_id_349=induced_subgraph(FB, c(349,neighbors(FB, 349, mode = "total")), impl ="auto")
+FB_id_484=induced_subgraph(FB, c(484,neighbors(FB, 484, mode = "total")), impl ="auto")
+FB_id_1087=induced_subgraph(FB, c(1087,neighbors(FB, 1087, mode = "total")), impl ="auto")
+```
+
+Node 108
+```{r}
+# fast greedy for FB_108
+com108FG=cluster_fast_greedy(FB_id_108, merges = FALSE, modularity = TRUE,  weights=NULL)
+plotCommunity(com108FG,FB_id_108)
+
+# Run extremely slow!! Or something wrong???
+# Edge-Betweenness for FB_108
+com108EB = cluster_edge_betweenness(FB_id_108,weights=NULL,directed=FALSE, modularity=TRUE)
+plotCommunity(com108EB,FB_id_108)
+
+# Infomap for FB_108
+com108IC = infomap.community(FB_id_108)
+plotCommunity(com108IC,FB_id_108)
+```
+
+
+Node 349
+```{r}
+# fast greedy for FB_349
+com349FG=cluster_fast_greedy(FB_id_349, merges = FALSE, modularity = TRUE,
+ weights=NULL)
+plotCommunity(com349FG,FB_id_349)
+
+# Edge-Betweenness for FB_349
+com349EB = cluster_edge_betweenness(FB_id_349,weights=NULL, directed=FALSE,modularity=TRUE)
+plotCommunity(com349EB,FB_id_349)
+
+# Infomap for FB_349
+com349IC = infomap.community(FB_id_349)
+plotCommunity(com349IC,FB_id_349)
+```
+
+Node 484
+```{r}
+# fast greedy for FB_484
+com484FG=cluster_fast_greedy(FB_id_484, merges = FALSE, modularity = TRUE,
+ weights=NULL)
+plotCommunity(com484FG,FB_id_484)
+
+# Edge-Betweenness for FB_484
+com484EB = cluster_edge_betweenness(FB_id_484,weights=NULL, directed=FALSE,modularity=TRUE)
+plotCommunity(com484EB,FB_id_484)
+
+# Infomap for FB_484
+com484IC = infomap.community(FB_id_484)
+plotCommunity(com484IC,FB_id_484)
+```
+
+Node 1087
+```{r}
+# fast greedy for FB_1087
+com1087FG=cluster_fast_greedy(FB_id_1087, merges = FALSE, modularity = TRUE,
+ weights=NULL)
+plotCommunity(com1087FG,FB_id_1087)
+
+# Edge-Betweenness for FB_1087
+com1087EB = cluster_edge_betweenness(FB_id_1087,weights=NULL, directed=FALSE,modularity=TRUE)
+plotCommunity(com1087EB,FB_id_1087)
+
+# Infomap for FB_1087
+com1087IC = infomap.community(FB_id_1087)
+plotCommunity(com1087IC,FB_id_1087)
+```
+
+
+
+##### Q10
+```{r}
+FB_id1_WC = induced_subgraph(FB, c(neighbors(FB, 1, mode = "total")), impl ="auto")
+FB_id_108_WC = induced_subgraph(FB, c(neighbors(FB, 108, mode = "total")), impl ="auto")
+FB_id_349_WC = induced_subgraph(FB, c(neighbors(FB, 349, mode = "total")), impl ="auto")
+FB_id_484_WC = induced_subgraph(FB, c(neighbors(FB, 484, mode = "total")), impl ="auto")
+FB_id_1087_WC = induced_subgraph(FB, c(neighbors(FB, 1087, mode = "total")), impl ="auto")
+
+```
+Node 1
+```{r}
+# fast greedy
+com1FG_WC=cluster_fast_greedy(FB_id1_WC, merges = FALSE, modularity = TRUE,
+ weights=NULL)
+plotCommunity(com1FG_WC,FB_id1_WC)
+
+# Edge-Betweenness
+com1EB_WC = cluster_edge_betweenness(FB_id1_WC,weights=NULL, directed=FALSE,modularity=TRUE)
+plotCommunity(com1EB_WC,FB_id1_WC)
+
+# Infomap for
+com1IC_WC = infomap.community(FB_id1_WC)
+plotCommunity(com1IC_WC,FB_id1_WC)
+```
+Node 108
+```{r}
+# fast greedy for FB_108
+com108FG_WC=cluster_fast_greedy(FB_id_108_WC, merges = FALSE, modularity = TRUE,  weights=NULL)
+plotCommunity(com108FG_WC,FB_id_108_WC)
+
+# Run extremely slow!! Or something wrong???
+# Edge-Betweenness for FB_108
+com108EB_WC = cluster_edge_betweenness(FB_id_108_WC,weights=NULL,directed=FALSE, modularity=TRUE)
+plotCommunity(com108EB_WC,FB_id_108_WC)
+
+# Infomap for FB_108
+com108IC_WC = infomap.community(FB_id_108_WC)
+plotCommunity(com108IC_WC,FB_id_108_WC)
+```
+
+Node 349
+```{r}
+# fast greedy for FB_349
+com349FG_WC=cluster_fast_greedy(FB_id_349_WC, merges = FALSE, modularity = TRUE,
+ weights=NULL)
+plotCommunity(com349FG_WC,FB_id_349_WC)
+
+# Edge-Betweenness for FB_349
+com349EB_WC = cluster_edge_betweenness(FB_id_349_WC,weights=NULL, directed=FALSE,modularity=TRUE)
+plotCommunity(com349EB_WC,FB_id_349_WC)
+
+# Infomap for FB_349
+com349IC_WC = infomap.community(FB_id_349_WC)
+plotCommunity(com349IC_WC,FB_id_349_WC)
+```
+
+Node 484
+```{r}
+# fast greedy for FB_484
+com484FG_WC=cluster_fast_greedy(FB_id_484_WC, merges = FALSE, modularity = TRUE,
+ weights=NULL)
+plotCommunity(com484FG_WC,FB_id_484_WC)
+
+# Edge-Betweenness for FB_484
+com484EB_WC = cluster_edge_betweenness(FB_id_484_WC,weights=NULL, directed=FALSE,modularity=TRUE)
+plotCommunity(com484EB_WC,FB_id_484_WC)
+
+# Infomap for FB_484
+com484IC_WC = infomap.community(FB_id_484_WC)
+plotCommunity(com484IC_WC,FB_id_484_WC)
+```
+
+Node 1087
+```{r}
+# fast greedy for FB_1087
+com1087FG_WC=cluster_fast_greedy(FB_id_1087_WC, merges = FALSE, modularity = TRUE,
+ weights=NULL)
+plotCommunity(com1087FG_WC,FB_id_1087_WC)
+
+# Edge-Betweenness for FB_1087
+com1087EB_WC = cluster_edge_betweenness(FB_id_1087_WC,weights=NULL, directed=FALSE,modularity=TRUE)
+plotCommunity(com1087EB_WC,FB_id_1087_WC)
+
+# Infomap for FB_1087
+com1087IC_WC = infomap.community(FB_id_1087_WC)
+plotCommunity(com1087IC_WC,FB_id_1087_WC)
+```
+
+##### Q11
+
+Typically, the embeddedness of a node is larger if its degree is higher. With higher degree, the node will have more neighbours, thus a higher probability to have more mutual connections with the core node. 
+
+##### Q12
+
+```{r}
+# !!!Here, when calculating dispersion, we did not remove the node to be calculated from the network (the core node does be removed), which may cause some problem???
+core_node_vec <- list(1,108,349,484,1087)
+FB_vec <- list(FB_id1,FB_id_108,FB_id_349,FB_id_484,FB_id_1087)
+FB_WC_vec <- list(FB_id1_WC,FB_id_108_WC,FB_id_349_WC,FB_id_484_WC,FB_id_1087_WC)
+#embeddedness_vec <- rep(rep(0, length(V(FB_id1_WC))),5)
+#dispersion_vec <- rep(rep(0, length(V(FB_id1_WC))),5)
+# Node 1
+embeddedness_vec_1 <- rep(0, length(V(FB_id1_WC)))
+dispersion_vec_1 <- rep(0, length(V(FB_id1_WC)))
+for(vv in V(FB_id1_WC)){
+  neighbor_temp = neighbors(FB_id1_WC, vv, mode = "total")
+  embeddedness_vec_1[vv] <- length(intersect(neighbor_temp,V(FB_id1_WC)))
+  modefied_net <- delete_vertices(FB_id1_WC,vv)
+  dis_temp <- 0
+  for (i in neighbor_temp){
+    for (j in neighbor_temp){
+      dis_temp <- dis_temp + distances(FB_id1_WC, v = i, to = j)[1]
+    }
+  }
+  dispersion_vec_1[vv] <- dis_temp
+}
+dispersion_vec_1 <- dispersion_vec_1/2
+plot(density(embeddedness_vec_1),main="Embeddedness Distribution for Node 1's Personalized Network",xlab="Embeddedness")
+plot(density(dispersion_vec_1),main="Dispersion Distribution for Node 1's Personalized Network",xlab="Dispersion")
+
+# Node 108
+embeddedness_vec_108 <- rep(0, length(V(FB_id_108_WC)))
+dispersion_vec_108 <- rep(0, length(V(FB_id_108_WC)))
+for(vv in V(FB_id_108_WC)){
+  neighbor_temp = neighbors(FB_id_108_WC, vv, mode = "total")
+  embeddedness_vec_108[vv] <- length(intersect(neighbor_temp,V(FB_id_108_WC)))
+  modefied_net <- delete_vertices(FB_id_108_WC,vv)
+  dis_temp <- 0
+  for (i in neighbor_temp){
+    for (j in neighbor_temp){
+      dis_temp <- dis_temp + distances(FB_id_108_WC, v = i, to = j)[1]
+    }
+  }
+  dispersion_vec_108[vv] <- dis_temp
+}
+dispersion_vec_108 <- dispersion_vec_108/2
+plot(density(embeddedness_vec_108),main="Embeddedness Distribution for Node 108's Personalized Network",xlab="Embeddedness")
+plot(density(dispersion_vec_108),main="Dispersion Distribution for Node 108's Personalized Network",xlab="Dispersion")
+
+# Node 349
+embeddedness_vec_349 <- rep(0, length(V(FB_id_349_WC)))
+dispersion_vec_349 <- rep(0, length(V(FB_id_349_WC)))
+for(vv in V(FB_id_349_WC)){
+  neighbor_temp = neighbors(FB_id_349_WC, vv, mode = "total")
+  embeddedness_vec_349[vv] <- length(intersect(neighbor_temp,V(FB_id_349_WC)))
+  modefied_net <- delete_vertices(FB_id_349_WC,vv)
+  dis_temp <- 0
+  for (i in neighbor_temp){
+    for (j in neighbor_temp){
+      dis_temp <- dis_temp + distances(FB_id_349_WC, v = i, to = j)[1]
+    }
+  }
+  dispersion_vec_349[vv] <- dis_temp
+}
+dispersion_vec_349 <- dispersion_vec_349/2
+plot(density(embeddedness_vec_349),main="Embeddedness Distribution for Node 349's Personalized Network",xlab="Embeddedness")
+plot(density(dispersion_vec_349),main="Dispersion Distribution for Node 349's Personalized Network",xlab="Dispersion")
+
+# Node 484
+embeddedness_vec_484 <- rep(0, length(V(FB_id_484_WC)))
+dispersion_vec_484 <- rep(0, length(V(FB_id_484_WC)))
+for(vv in V(FB_id_484_WC)){
+  neighbor_temp = neighbors(FB_id_484_WC, vv, mode = "total")
+  embeddedness_vec_484[vv] <- length(intersect(neighbor_temp,V(FB_id_484_WC)))
+  modefied_net <- delete_vertices(FB_id_484_WC,vv)
+  dis_temp <- 0
+  for (i in neighbor_temp){
+    for (j in neighbor_temp){
+      dis_temp <- dis_temp + distances(FB_id_484_WC, v = i, to = j)[1]
+    }
+  }
+  dispersion_vec_484[vv] <- dis_temp
+}
+dispersion_vec_484 <- dispersion_vec_484/2
+plot(density(embeddedness_vec_484),main="Embeddedness Distribution for Node 484's Personalized Network",xlab="Embeddedness")
+plot(density(dispersion_vec_484),main="Dispersion Distribution for Node 484's Personalized Network",xlab="Dispersion")
+
+
+# Node 1087
+embeddedness_vec_1087 <- rep(0, length(V(FB_id_1087_WC)))
+dispersion_vec_1087 <- rep(0, length(V(FB_id_1087_WC)))
+for(vv in V(FB_id_1087_WC)){
+  neighbor_temp = neighbors(FB_id_1087_WC, vv, mode = "total")
+  embeddedness_vec_1087[vv] <- length(intersect(neighbor_temp,V(FB_id_1087_WC)))
+  modefied_net <- delete_vertices(FB_id_1087_WC,vv)
+  dis_temp <- 0
+  for (i in neighbor_temp){
+    for (j in neighbor_temp){
+      dis_temp <- dis_temp + distances(FB_id_1087_WC, v = i, to = j)[1]
+    }
+  }
+  dispersion_vec_1087[vv] <- dis_temp
+}
+dispersion_vec_1087 <- dispersion_vec_1087/2
+plot(density(embeddedness_vec_1087),main="Embeddedness Distribution for Node 1087's Personalized Network",xlab="Embeddedness")
+plot(density(dispersion_vec_1087),main="Dispersion Distribution for Node 1087's Personalized Network",xlab="Dispersion")
+
+```
+
+
+##### Q13 & Q14
+
+
+```{r}
+nodeAndEdge = function(g, id,com){
+    colors = rainbow(max(membership(com))+1)
+    #print(membership(com))
+    nodes_colors = colors[1:(length(colors)-1)]
+    V(g)[id]$color <- "blue"
+    temp=E(g) [ from(id) ]
+    V(g)$color = nodes_colors[membership(com)] 
+    E(g)[ inc(id)]$color <- 'blue'
+    V(g)$size= 2
+    plot(g,vertex.size=2,vertex.label=NA)
+}
+nodeAndEdge(FB_id1_WC, which.max(embeddedness_vec_1),com1FG_WC)
+nodeAndEdge(FB_id_108_WC, which.max(embeddedness_vec_108),com108FG_WC)
+nodeAndEdge(FB_id_349_WC, which.max(embeddedness_vec_349),com349FG_WC)
+nodeAndEdge(FB_id_484_WC, which.max(embeddedness_vec_484),com484FG_WC)
+nodeAndEdge(FB_id_1087_WC, which.max(embeddedness_vec_1087),com1087FG_WC)
+
+
+
+
+```
+```{r}
+nodeAndEdge(FB_id1_WC, which.max(dispersion_vec_1),com1FG_WC)
+nodeAndEdge(FB_id_108_WC, which.max(dispersion_vec_108),com108FG_WC)
+nodeAndEdge(FB_id_349_WC, which.max(dispersion_vec_349),com349FG_WC)
+nodeAndEdge(FB_id_484_WC, which.max(dispersion_vec_484),com484FG_WC)
+nodeAndEdge(FB_id_1087_WC, which.max(dispersion_vec_1087),com1087FG_WC)
+```
+```{r}
+nodeAndEdge(FB_id1_WC, which.max(dispersion_vec_1/embeddedness_vec_1),com1FG_WC)
+nodeAndEdge(FB_id_108_WC, which.max(dispersion_vec_108/embeddedness_vec_108),com108FG_WC)
+nodeAndEdge(FB_id_349_WC, which.max(dispersion_vec_349/embeddedness_vec_349),com349FG_WC)
+nodeAndEdge(FB_id_484_WC, which.max(dispersion_vec_484/embeddedness_vec_484),com484FG_WC)
+nodeAndEdge(FB_id_1087_WC, which.max(dispersion_vec_1087/embeddedness_vec_1087),com1087FG_WC)
+```
