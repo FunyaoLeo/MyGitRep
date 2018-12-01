@@ -1,0 +1,10 @@
+<ul class="blogs">
+  <li *ngFor="let post of posts"
+      [class.selected] = "post === selectedPost">
+    <a routerLink = "/edit/{{post.postid}}">
+      <span class="badge">{{post.created|date:'medium'}}</span> {{post.title}}
+    </a>
+  </li>
+</ul>
+
+<button (click) = "onNew()">New Post</button>

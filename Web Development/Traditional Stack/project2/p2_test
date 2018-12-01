@@ -1,0 +1,103 @@
+#!/bin/bash
+TMP_DIR=/tmp/p2-grading/
+REQUIRED_FILES="TEAM.txt deploy.sh build.gradle create.sql edit.png preview.png list.png src/main/webapp/WEB-INF/web.xml"
+ZIP_FILE=$1
+
+function error_exit()
+{
+   echo -e "ERROR: $1" 1>&2
+   rm -rf ${TMP_DIR}
+   exit 1
+}
+
+function check_files()
+{
+    for FILE in $1; do
+        if [ ! -f ${FILE} ]; then
+            error_exit "Cannot find ${FILE} in $2"
+        fi
+    done
+}
+
+# usage
+if [ $# -ne 1 ]; then
+     echo "Usage: $0 project2.zip" 1>&2
+     exit
+fi
+
+if [ `whoami` != "cs144" ]; then
+     error_exit "You need to run this script within the container"
+fi
+
+# clean any existing files
+rm -rf ${TMP_DIR}
+mkdir ${TMP_DIR}
+
+# unzip the submission zip file 
+if [ ! -f ${ZIP_FILE} ]; then
+    error_exit "Cannot find $ZIP_FILE"
+fi
+unzip -q -d ${TMP_DIR} ${ZIP_FILE}
+if [ "$?" -ne "0" ]; then 
+    error_exit "Cannot unzip ${ZIP_FILE} to ${TMP_DIR}"
+fi
+
+# change directory to the grading folder
+cd ${TMP_DIR}
+
+# check the existence of the required files
+check_files "${REQUIRED_FILES}" "the zip file"
+
+# check the existence of any java file
+JAVA_FILES=`find src/main/java -name '*.java' -print`
+if [ -z "${JAVA_FILES}" ]; then
+    error_exit "No java file is included in src/main/java folder of ${ZIP_FILE}"
+fi
+
+# check the existence of any jsp file
+JSP_FILES=`find src/main/webapp -name '*.jsp' -print`
+if [ -z "${JSP_FILES}" ]; then
+    error_exit "No jsp file is included in src/main/webapp folder of ${ZIP_FILE}"
+fi
+
+# check the format of TEAM.txt
+VALID_UID=$(grep -E "^[0-9]{9}\s*$" TEAM.txt)
+if [ -z "${VALID_UID}" ]; then
+    error_exit "No valid UID was found in TEAM.txt.\nInclude one 9-digit UID per line. No spaces or dashes, please."
+fi
+NON_UID=$(grep -v -E "^[0-9]{9}\s*$" TEAM.txt)
+if [ -n "${NON_UID}" ]; then
+    error_exit "Following lines are invalid in TEAM.txt\n${NON_UID}\nInclude one 9-digit UID per line. No spaces or dashes, please."
+fi
+
+#
+# Done with basic checking. Run the submitted code now
+#
+echo "dropping all tables in CS144 database"
+mysql -Nse 'show tables' CS144 | while read table; do mysql CS144 -e "drop table $table"; done 
+
+echo "building and deploying your application..."
+rm -f $CATALINA_BASE/webapps/editor.war
+gradle clean
+./deploy.sh
+
+echo "Finished deploying your app. Sleeping for 30 seconds for Tomcat to pick it up..." 
+sleep 30
+
+# Send request to Tomcat
+URL="http://localhost:8080/editor/post?action=open&username=test&postid=0&title=&body="
+echo "Requesting ${URL}"
+echo
+echo
+echo "This is the response from Tomcat. Make sure that it is what you expect"
+curl -s ${URL}
+if [ $? -ne 0 ]; then
+   error_exit "Failed to get response at ${URL}"
+fi
+
+# clean up
+rm -rf ${TMP_DIR}
+
+echo
+echo "SUCCESS!" 1>&2
+exit 0

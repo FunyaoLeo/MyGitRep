@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Blog Lists</title>
+    <!-- Latest compiled and minified CSS -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+</head>
+
+<body>
+<div class="container">
+    <h2>Blog Lists</h2>
+    <table class="table table-striped">
+        <thead>
+        <tr>
+            <th>title</th>
+            <th>body</th>
+            <th>created</th>
+            <th>modified</th>
+        </tr>
+        </thead>
+        <tbody>
+        <% for(post of posts) {%>
+            <%var created = new Date()%>
+            <%var modified = new Date()%>
+            <%created.setTime(post.created)%>
+            <%modified.setTime(post.created)%>
+            <tr>
+                <td><%- post.title %></td>
+                <td><%- post.body %></td>
+                <td><%= created %></td>
+                <td><%= modified %></td>
+            </tr>
+        <% } %>
+        </tbody>
+    </table>
+
+    <%if (nextId != 0){%>
+        <ul class="pager">
+            <li><a id="next" href="/blog/<%= posts[0].username%>?start=<%=nextId%>">Next</a></li>
+        </ul>
+    <%}%>
+</div>
+</body>
+</html>

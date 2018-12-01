@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Login Page</title>
+    <!-- Latest compiled and minified CSS -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+</head>
+
+<body>
+    <div class="container">
+        <h2>Login Page</h2>
+        <p>please input your username and password to log in</p>
+        <form action="/login" method="POST">
+            <%if (typeof redirect != 'undefined'){%>
+                <ul class="pager">
+                    <input type="hidden" name="redirect" value='<%= redirect %>'>
+                </ul>
+            <%}%>
+            <div class="form-group">
+                <label for="username">username:</label>
+                <input type="text" name="username" class="form-control" id="username">
+            </div>
+            <div class="form-group">
+                <label for="password">password:</label>
+                <input type="password" name="password" class="form-control" id="password">
+            </div>
+            <button type="submit" class="btn">login</button>
+        </form>
+    </div>
+</body>
+</html>
